@@ -3,7 +3,61 @@ const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
-async function getGgrediLink(downloadPageUrl, animeSlug, episodeNumber) {
+async function searchGogoanime(animeTitle, episodeNumber) {
+    try {
+        console.log(`Searching for: ${animeTitle} Episode ${episodeNumber}`);
+
+        // Step 1: Format search query for Gogoanime
+        const searchUrl = `https://ww24.gogoanimes.fi/search.html?keyword=${encodeURIComponent(animeTitle)}`;
+        const searchResponse = await axios.get(searchUrl);
+        const $ = cheerio.load(searchResponse.data);
+
+        // Step 2: Find the first search result link
+        const firstResult = $('.items li a').first();
+        const animeSlug = firstResult.attr('href')?.split('/')[2]; // Extract slug from URL
+
+        if (!animeSlug) {
+            console.log("Anime not found.");
+            return;
+        }
+
+        console.log(`Anime Found: ${animeSlug}`);
+
+        // Step 3: Get the episode page URL
+        const episodeUrl = `https://ww24.gogoanimes.fi/${animeSlug}-episode-${episodeNumber}`;
+        console.log(`Episode URL: ${episodeUrl}`);
+
+        // Step 4: Get the S3embtaku Download Page
+        await getDownloadPage(episodeUrl, animeTitle, episodeNumber);
+    } catch (error) {
+        console.error("Error searching Gogoanime:", error.message);
+    }
+}
+
+async function getDownloadPage(episodeUrl, animeTitle, episodeNumber) {
+    try {
+        console.log(`Fetching: ${episodeUrl}`);
+
+        const response = await axios.get(episodeUrl);
+        const $ = cheerio.load(response.data);
+
+        // Step 1: Find the S3embtaku Download Link
+        const downloadPageUrl = $('.dowloads a').attr('href');
+
+        if (downloadPageUrl) {
+            console.log(`S3embtaku Download Page Found: ${downloadPageUrl}`);
+
+            // Step 2: Fetch the ggredi.info Download Link
+            await getGgrediLink(downloadPageUrl, animeTitle, episodeNumber);
+        } else {
+            console.log("No download page link found.");
+        }
+    } catch (error) {
+        console.error("Error fetching download page link:", error.message);
+    }
+}
+
+async function getGgrediLink(downloadPageUrl, animeTitle, episodeNumber) {
     console.log(`Opening in Puppeteer: ${downloadPageUrl}`);
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
@@ -21,43 +75,39 @@ async function getGgrediLink(downloadPageUrl, animeSlug, episodeNumber) {
 
         console.log(`ggredi.info Link Found: ${ggrediLink}`);
 
-        // Step 3: Save to File
-        const line = `${animeSlug} Episode ${episodeNumber}: ${ggrediLink}\n`;
-        fs.appendFileSync('download.txt', line, 'utf8');
-
         await browser.close();
+
+        // Step 3: Follow Redirect to Get Final MP4 Video Link
+        await getFinalMp4Link(ggrediLink, animeTitle, episodeNumber);
     } catch (error) {
         console.error("Error finding ggredi.info link:", error.message);
         await browser.close();
     }
 }
 
-async function getDownloadPage(animeSlug, episodeNumber) {
+async function getFinalMp4Link(redirectLink, animeTitle, episodeNumber) {
     try {
-        // Step 1: Fetch the Gogoanime Episode Page
-        const episodeUrl = `https://ww24.gogoanimes.fi/${animeSlug}-episode-${episodeNumber}`;
-        console.log(`Fetching: ${episodeUrl}`);
+        console.log(`Following redirect: ${redirectLink}`);
 
-        const response = await axios.get(episodeUrl);
-        const $ = cheerio.load(response.data);
+        // Step 1: Follow Redirect and Get Final Video URL
+        const response = await axios.get(redirectLink, { maxRedirects: 5 });
 
-        // Step 2: Find the S3embtaku Download Link
-        const downloadPageUrl = $('.dowloads a').attr('href');
+        if (response.request.res.responseUrl) {
+            const finalMp4Link = response.request.res.responseUrl;
+            console.log(`Final MP4 Download Link: ${finalMp4Link}`);
 
-        if (downloadPageUrl) {
-            console.log(`S3embtaku Download Page Found: ${downloadPageUrl}`);
-
-            // Step 3: Fetch the ggredi.info Download Link
-            await getGgrediLink(downloadPageUrl, animeSlug, episodeNumber);
+            // Step 2: Save to File
+            const line = `${animeTitle} Episode ${episodeNumber} (360p): ${finalMp4Link}\n`;
+            fs.appendFileSync('download.txt', line, 'utf8');
         } else {
-            console.log("No download page link found.");
+            console.log("No final MP4 link found.");
         }
     } catch (error) {
-        console.error("Error fetching download page link:", error.message);
+        console.error("Error fetching final MP4 link:", error.message);
     }
 }
 
 // Example Usage
-getDownloadPage("citrus-dub", 6);
-getDownloadPage("vividred-operation", 1);
-getDownloadPage("naruto", 4);
+searchGogoanime("Naruto Shippuden", 7);
+searchGogoanime("Attack on Titan", 5);
+searchGogoanime("One Piece", 1000);
