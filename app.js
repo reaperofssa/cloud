@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 const PORT = 3000;
@@ -77,17 +77,19 @@ async function getEpisodeInfo(episodeUrl, animeTitle, episodeNumber) {
 
 async function getVideoLinks(downloadPageUrl) {
     console.log(`Opening Puppeteer: ${downloadPageUrl}`);
+    
     const browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--disable-gpu"
-    ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/opt/render/.cache/puppeteer/chrome/linux-133.0.6943.53/chrome-linux64/chrome'
-});
+        headless: "new",
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--disable-gpu"
+        ],
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser'
+    });
+
     const page = await browser.newPage();
 
     try {
@@ -104,6 +106,7 @@ async function getVideoLinks(downloadPageUrl) {
             }));
         });
 
+        // Close Puppeteer before processing links
         await browser.close();
 
         // Convert to dictionary format
