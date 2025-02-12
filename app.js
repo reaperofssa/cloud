@@ -86,7 +86,7 @@ async function getVideoLinks(downloadPageUrl) {
         "--disable-accelerated-2d-canvas",
         "--disable-gpu"
     ],
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath()
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/opt/render/.cache/puppeteer/chrome/linux-133.0.6943.53/chrome-linux64/chrome'
 });
     const page = await browser.newPage();
 
