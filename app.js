@@ -87,7 +87,7 @@ async function getVideoLinks(downloadPageUrl) {
             "--disable-accelerated-2d-canvas",
             "--disable-gpu"
         ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser'
+        executablePath: process.env.CHROMIUM_PATH || "/usr/bin/google-chrome-stable"
     });
 
     const page = await browser.newPage();
@@ -95,10 +95,8 @@ async function getVideoLinks(downloadPageUrl) {
     try {
         await page.goto(downloadPageUrl, { waitUntil: 'networkidle2' });
 
-        // Wait for the download buttons to load
         await page.waitForSelector('a[href*="ggredi.info/download.php"]', { timeout: 10000 });
 
-        // Get all quality links
         const videoLinks = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('a[href*="ggredi.info/download.php"]')).map(link => ({
                 quality: link.innerText.trim(),
@@ -106,22 +104,18 @@ async function getVideoLinks(downloadPageUrl) {
             }));
         });
 
-        // Close Puppeteer before processing links
         await browser.close();
 
-        // Convert to dictionary format
         const directDownloadLinks = {};
         const promises = videoLinks
             .filter(link => link.quality.includes('360') || link.quality.includes('720'))
             .map(async link => {
                 const finalLink = await getFinalMp4Link(link.url);
                 if (finalLink) {
-                    // Format the response properly
                     directDownloadLinks[link.quality.replace(/\D/g, '') + 'p'] = finalLink;
                 }
             });
 
-        // Wait for all MP4 links to be resolved before returning
         await Promise.all(promises);
 
         return directDownloadLinks;
