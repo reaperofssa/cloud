@@ -77,7 +77,17 @@ async function getEpisodeInfo(episodeUrl, animeTitle, episodeNumber) {
 
 async function getVideoLinks(downloadPageUrl) {
     console.log(`Opening Puppeteer: ${downloadPageUrl}`);
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({
+    headless: "new",
+    args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu"
+    ],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath()
+});
     const page = await browser.newPage();
 
     try {
